@@ -2,6 +2,6 @@
 {
     public class ShortRequest
     {
-        public string Url { get; set; }
+        public string url { get; set; }
     }
 }

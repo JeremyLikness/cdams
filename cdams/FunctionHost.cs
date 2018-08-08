@@ -37,21 +37,21 @@ namespace cdams
                 return req.CreateResponse(HttpStatusCode.NotFound);
             }
 
-            if (string.IsNullOrWhiteSpace(input.Url))
+            if (string.IsNullOrWhiteSpace(input.url))
             {
                 return req.CreateResponse(HttpStatusCode.BadRequest);
             }
 
-            if (!Uri.TryCreate(input.Url, UriKind.Absolute, out Uri uri))
+            if (!Uri.TryCreate(input.url, UriKind.Absolute, out Uri uri))
             {
                 return req.CreateResponse(HttpStatusCode.BadRequest);
             }
 
             var result = new ShortResponse
             {
-                Url = input.Url,
-                Short_code = string.Empty,
-                Error = string.Empty
+                url = input.url,
+                short_code = string.Empty,
+                error = string.Empty
             };
 
             try
@@ -75,7 +75,7 @@ namespace cdams
                 {
                     PartitionKey = $"{code[0]}",
                     RowKey = code,
-                    Url = input.Url
+                    Url = input.url
                 };
 
                 keyTable.Id++;
@@ -84,7 +84,7 @@ namespace cdams
                 operation = TableOperation.Insert(url);
                 await tableOut.ExecuteAsync(operation);
 
-                result.Short_code = code;
+                result.short_code = code;
 
                 var response = new HttpResponseMessage
                 {
@@ -96,7 +96,7 @@ namespace cdams
             catch(Exception ex)
             {
                 log.Error("Error processing link", ex);
-                result.Error = ex.Message;
+                result.error = ex.Message;
                 var response = new HttpResponseMessage
                 {
                     StatusCode = HttpStatusCode.Conflict,

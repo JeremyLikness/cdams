@@ -2,8 +2,8 @@
 {
     public class ShortResponse
     {
-        public string Url {  get; set; }
-        public string Short_code { get; set; }
-        public string Error { get; set; }
+        public string url {  get; set; }
+        public string short_code { get; set; }
+        public string error { get; set; }
     }
 }
