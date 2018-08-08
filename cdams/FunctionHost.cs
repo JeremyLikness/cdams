@@ -16,12 +16,103 @@ namespace cdams
 {
     public static class FunctionHost
     {
+        [FunctionName("ShortenUrl")]
+        public static async Task<HttpResponseMessage> ShortenUrl(
+            [HttpTrigger(AuthorizationLevel.Anonymous, "post")]HttpRequestMessage req,
+            [Table(Utility.TABLE, Utility.PARTITIONKEY, Utility.KEY, Take = 1)]UrlKey keyTable,
+            [Table(Utility.TABLE)]CloudTable tableOut,
+            TraceWriter log)
+        {
+            log.Info($"C# triggered function called with req: {req}");
+
+            if (req == null)
+            {
+                return req.CreateResponse(HttpStatusCode.NotFound);
+            }
+
+            ShortRequest input = await req.Content.ReadAsAsync<ShortRequest>();
+
+            if (input == null)
+            {
+                return req.CreateResponse(HttpStatusCode.NotFound);
+            }
+
+            if (string.IsNullOrWhiteSpace(input.Url))
+            {
+                return req.CreateResponse(HttpStatusCode.BadRequest);
+            }
+
+            if (!Uri.TryCreate(input.Url, UriKind.Absolute, out Uri uri))
+            {
+                return req.CreateResponse(HttpStatusCode.BadRequest);
+            }
+
+            var result = new ShortResponse
+            {
+                Url = input.Url,
+                Short_code = string.Empty,
+                Error = string.Empty
+            };
+
+            try
+            {
+                if (keyTable == null)
+                {
+                    keyTable = new UrlKey
+                    {
+                        PartitionKey = Utility.PARTITIONKEY,
+                        RowKey = Utility.KEY,
+                        Id = 1
+                    };
+                    var addKey = TableOperation.Insert(keyTable);
+                    await tableOut.ExecuteAsync(addKey);
+                }
+
+                var idx = keyTable.Id;
+                var code = Utility.Encode(idx);
+
+                var url = new UrlEntity
+                {
+                    PartitionKey = $"{code[0]}",
+                    RowKey = code,
+                    Url = input.Url
+                };
+
+                keyTable.Id++;
+                var operation = TableOperation.Replace(keyTable);
+                await tableOut.ExecuteAsync(operation);
+                operation = TableOperation.Insert(url);
+                await tableOut.ExecuteAsync(operation);
+
+                result.Short_code = code;
+
+                var response = new HttpResponseMessage
+                {
+                    Content = new StringContent(JsonConvert.SerializeObject(result))
+                };
+
+                return response;
+            }
+            catch(Exception ex)
+            {
+                log.Error("Error processing link", ex);
+                result.Error = ex.Message;
+                var response = new HttpResponseMessage
+                {
+                    StatusCode = HttpStatusCode.Conflict,
+                    Content = new StringContent(JsonConvert.SerializeObject(result))
+                };
+                return response;
+            }
+        }
+
+
         [FunctionName(name: "UrlRedirect")]
         public static async Task<System.Net.Http.HttpResponseMessage> Run([HttpTrigger(AuthorizationLevel.Anonymous, "get", "post",
             Route = "UrlRedirect/{shortUrl}")]HttpRequestMessage req,
-            [Table("cdams")]CloudTable inputTable,
+            [Table(Utility.TABLE)]CloudTable inputTable,
             string shortUrl,
-            [Queue(queueName: "redirects")]IAsyncCollector<string> queue,
+            [Queue(queueName: Utility.QUEUE)]IAsyncCollector<string> queue,
             TraceWriter log)
         {
             log.Info($"C# HTTP trigger function processed a request for shortUrl {shortUrl}");
