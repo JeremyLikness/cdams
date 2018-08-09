@@ -1,6 +1,13 @@
 ﻿{
   "$schema": "http://json.schemastore.org/proxies",
   "proxies": {
+    "Save": {
+      "matchCondition": {
+        "methods": [ "POST" ],
+        "route": "/save"
+      },
+      "backendUri": "http://%WEBSITE_HOSTNAME%/api/ShortenUrl"
+    },
     "Domain Redirect": {
       "matchCondition": {
         "route": "/{shortUrl}"
