@@ -75,7 +75,7 @@ namespace cdams
                 {
                     PartitionKey = $"{code[0]}",
                     RowKey = code,
-                    Url = input.url
+                    Url = $"https://{Utility.BASEURL}/{code}"
                 };
 
                 keyTable.Id++;

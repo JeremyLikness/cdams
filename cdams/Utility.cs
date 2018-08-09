@@ -15,6 +15,7 @@ namespace cdams
         public const string PARTITIONKEY = "0";
         public const string KEY = "KEY";
         public const string BASE = "0123456789bcdfghjkmnpqrstvwxyzBCDFGHJKLMNPQRSTVWXYZ";
+        public const string BASEURL = "cda.ms";
 
         public static string AsPartitionKey(this string code)
         {
