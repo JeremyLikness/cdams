@@ -11,6 +11,8 @@ using System.Net.Http;
 using Microsoft.WindowsAzure.Storage.Table;
 using System.Net;
 using System;
+using System.Web;
+using System.Dynamic;
 
 namespace cdams
 {
@@ -93,7 +95,7 @@ namespace cdams
 
                 return response;
             }
-            catch(Exception ex)
+            catch (Exception ex)
             {
                 log.Error("Error processing link", ex);
                 result.error = ex.Message;
@@ -166,6 +168,64 @@ namespace cdams
         public static void KeepAlive([TimerTrigger(scheduleExpression: "0 */4 * * * *")]TimerInfo myTimer, TraceWriter log)
         {
             log.Info("Keep-Alive invoked.");
+        }
+
+        [FunctionName("ProcessQueue")]
+        public static void ProcessQueue([QueueTrigger(queueName: Utility.QUEUE)]string request,
+           [CosmosDB(Utility.URL_TRACKING, Utility.URL_STATS, CreateIfNotExists = true, ConnectionStringSetting = "CosmosDb")]out dynamic doc,
+           TraceWriter log)
+        {
+            try
+            {
+                AnalyticsEntry parsed = Utility.ParseQueuePayload(request);
+                var page = parsed.LongUrl.AsPage(HttpUtility.ParseQueryString);
+
+                var analytics = parsed.LongUrl.ExtractCampaignMediumAndAlias(HttpUtility.ParseQueryString);
+                var campaign = analytics.Item1;
+                var medium = analytics.Item2;
+                var alias = analytics.Item3;
+                if (string.IsNullOrWhiteSpace(alias))
+                {
+                    alias = Utility.DEFAULT_ALIAS;
+                }
+
+                // cosmos DB 
+                var normalize = new[] { '/' };
+                doc = new ExpandoObject();
+                doc.id = Guid.NewGuid().ToString();
+                doc.page = page.TrimEnd(normalize);
+                doc.alias = alias;
+                if (!string.IsNullOrWhiteSpace(parsed.ShortUrl))
+                {
+                    doc.shortUrl = parsed.ShortUrl;
+                }
+                if (!string.IsNullOrWhiteSpace(campaign))
+                {
+                    doc.campaign = campaign;
+                }
+                if (parsed.Referrer != null)
+                {
+                    doc.referrerUrl = parsed.Referrer.AsPage(HttpUtility.ParseQueryString);
+                    doc.referrerHost = parsed.Referrer.DnsSafeHost;
+                }
+                if (!string.IsNullOrWhiteSpace(parsed.Agent))
+                {
+                    doc.agent = parsed.Agent;
+                }
+                doc.count = 1;
+                doc.timestamp = parsed.TimeStamp;
+                doc.host = parsed.LongUrl.DnsSafeHost;
+                if (!string.IsNullOrWhiteSpace(medium))
+                {
+                    doc.medium = 1;
+                }
+                log.Info($"CosmosDB: {doc.id}|{doc.page}|{parsed.ShortUrl}|{campaign}|{medium}");
+            }
+            catch (Exception ex)
+            {
+                log.Error("An unexpected error occurred", ex);
+                throw;
+            }
         }
     }
 }
