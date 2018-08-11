@@ -75,7 +75,7 @@ namespace cdams
             }
             var entry = new AnalyticsEntry
             {
-                ShortUrl = parts[0].ToUpper().Trim(),
+                ShortUrl = parts[0].Trim(),
                 LongUrl = new Uri(parts[1]),
                 TimeStamp = DateTime.Parse(parts[2]),
                 Referrer = string.IsNullOrWhiteSpace(parts[3]) ? null : new Uri(parts[3]),

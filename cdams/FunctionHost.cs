@@ -13,6 +13,7 @@ using System.Net;
 using System;
 using System.Web;
 using System.Dynamic;
+using System.Collections.Generic;
 
 namespace cdams
 {
@@ -217,7 +218,7 @@ namespace cdams
                 doc.host = parsed.LongUrl.DnsSafeHost;
                 if (!string.IsNullOrWhiteSpace(medium))
                 {
-                    doc.medium = 1;
+                    ((IDictionary<string, object>)doc).Add(medium, 1);
                 }
                 log.Info($"CosmosDB: {doc.id}|{doc.page}|{parsed.ShortUrl}|{campaign}|{medium}");
             }
