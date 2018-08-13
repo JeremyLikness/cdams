@@ -82,11 +82,11 @@ namespace cdams
                 {
                     PartitionKey = $"{code[0]}",
                     RowKey = code,
-                    Url = $"https://{Utility.BASEURL}/{code}"
+                    Url = input.url
                 };
 
                 log.Info($"ShortCode={code} for URL {url.Url}");
-                result.url = url.Url;
+                result.url = $"https://{Utility.BASEURL}/{code}";
 
                 keyTable.Id++;
                 var operation = TableOperation.Replace(keyTable);

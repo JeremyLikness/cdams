@@ -10,7 +10,8 @@
     },
     "Domain Redirect": {
       "matchCondition": {
-        "route": "/{shortUrl}"
+        "route": "/{shortUrl}",
+        "methods": [ "GET", "POST" ]
       },
       "backendUri": "http://%WEBSITE_HOSTNAME%/api/UrlRedirect/{shortUrl}"
     },
