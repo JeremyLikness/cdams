@@ -30,35 +30,41 @@ namespace cdams
 
             if (req == null)
             {
-                return req.CreateResponse(HttpStatusCode.NotFound);
-            }
-
-            ShortRequest input = await req.Content.ReadAsAsync<ShortRequest>();
-
-            if (input == null)
-            {
-                return req.CreateResponse(HttpStatusCode.NotFound);
-            }
-
-            if (string.IsNullOrWhiteSpace(input.url))
-            {
-                return req.CreateResponse(HttpStatusCode.BadRequest);
-            }
-
-            if (!Uri.TryCreate(input.url, UriKind.Absolute, out Uri uri))
-            {
-                return req.CreateResponse(HttpStatusCode.BadRequest);
+                return new HttpResponseMessage { StatusCode = HttpStatusCode.NotFound };
             }
 
             var result = new ShortResponse
             {
-                url = input.url,
+                url = string.Empty,
                 short_code = string.Empty,
                 error = string.Empty
             };
 
             try
             {
+                
+                ShortRequest input = await req.Content.ReadAsAsync<ShortRequest>();
+
+                if (input == null)
+                {
+                    log.Error("Input payload is null.");
+                    return new HttpResponseMessage { StatusCode = HttpStatusCode.NotFound };
+                }
+
+                if (string.IsNullOrWhiteSpace(input.url))
+                {
+                    log.Error("No URL found.");
+                    return new HttpResponseMessage { StatusCode = HttpStatusCode.BadRequest };                   
+                }
+
+                if (!Uri.TryCreate(input.url, UriKind.Absolute, out Uri uri))
+                {
+                    log.Error($"Input URL ({input.url}) is invalid format.");
+                    return req.CreateResponse(HttpStatusCode.BadRequest);
+                }
+
+                result.url = input.url;
+
                 if (keyTable == null)
                 {
                     keyTable = new UrlKey
@@ -80,6 +86,8 @@ namespace cdams
                     RowKey = code,
                     Url = $"https://{Utility.BASEURL}/{code}"
                 };
+
+                log.Info($"ShortCode={code} for URL {url.Url}");
 
                 keyTable.Id++;
                 var operation = TableOperation.Replace(keyTable);
@@ -108,7 +116,6 @@ namespace cdams
                 return response;
             }
         }
-
 
         [FunctionName(name: "UrlRedirect")]
         public static async Task<System.Net.Http.HttpResponseMessage> Run([HttpTrigger(AuthorizationLevel.Anonymous, "get", "post",
