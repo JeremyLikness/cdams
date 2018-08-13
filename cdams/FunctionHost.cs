@@ -63,8 +63,6 @@ namespace cdams
                     return req.CreateResponse(HttpStatusCode.BadRequest);
                 }
 
-                result.url = input.url;
-
                 if (keyTable == null)
                 {
                     keyTable = new UrlKey
@@ -88,6 +86,7 @@ namespace cdams
                 };
 
                 log.Info($"ShortCode={code} for URL {url.Url}");
+                result.url = url.Url;
 
                 keyTable.Id++;
                 var operation = TableOperation.Replace(keyTable);
