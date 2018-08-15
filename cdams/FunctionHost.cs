@@ -129,8 +129,11 @@ namespace cdams
             if (shortUrl.ToLower() == Utility.ROBOTS)
             {
                 log.Info("Request for robots.txt.");
-                var robotResponse = req.CreateResponse(HttpStatusCode.OK, Utility.ROBOT_RESPONSE, "text/plain");
-                return robotResponse;
+                return new HttpResponseMessage
+                {
+                    Content = new StringContent(Utility.ROBOT_RESPONSE),
+                    StatusCode = HttpStatusCode.OK
+                };
             }
 
             var redirectUrl = Utility.FALLBACKURL;
