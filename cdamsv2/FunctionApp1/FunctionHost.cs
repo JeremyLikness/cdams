@@ -1,33 +1,31 @@
-
+using System;
 using System.IO;
+using System.Threading.Tasks;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.Azure.WebJobs;
 using Microsoft.Azure.WebJobs.Extensions.Http;
 using Microsoft.AspNetCore.Http;
-using Microsoft.Azure.WebJobs.Host;
+using Microsoft.Extensions.Logging;
 using Newtonsoft.Json;
-using System.Threading.Tasks;
 using System.Net.Http;
+using Microsoft.Azure.WebJobs.Host;
 using Microsoft.WindowsAzure.Storage.Table;
 using System.Net;
-using System;
-using System.Web;
 using System.Dynamic;
 using System.Collections.Generic;
 
-namespace cdams
+namespace cdamsv2
 {
-    [Obsolete("Deprecated. Use cdamsv2 instead.")]
     public static class FunctionHost
-    {
+    {        
         [FunctionName("ShortenUrl")]
         public static async Task<HttpResponseMessage> ShortenUrl(
             [HttpTrigger(AuthorizationLevel.Anonymous, "post")]HttpRequestMessage req,
             [Table(Utility.TABLE, Utility.PARTITIONKEY, Utility.KEY, Take = 1)]UrlKey keyTable,
             [Table(Utility.TABLE)]CloudTable tableOut,
-            TraceWriter log)
+            ILogger log)
         {
-            log.Info($"C# triggered function called with req: {req}");
+            log.LogInformation($"C# triggered function called with req: {req}");
 
             if (req == null)
             {
@@ -43,24 +41,24 @@ namespace cdams
 
             try
             {
-                
+
                 ShortRequest input = await req.Content.ReadAsAsync<ShortRequest>();
 
                 if (input == null)
                 {
-                    log.Error("Input payload is null.");
+                    log.LogError("Input payload is null.");
                     return new HttpResponseMessage { StatusCode = HttpStatusCode.NotFound };
                 }
 
                 if (string.IsNullOrWhiteSpace(input.url))
                 {
-                    log.Error("No URL found.");
-                    return new HttpResponseMessage { StatusCode = HttpStatusCode.BadRequest };                   
+                    log.LogError("No URL found.");
+                    return new HttpResponseMessage { StatusCode = HttpStatusCode.BadRequest };
                 }
 
                 if (!Uri.TryCreate(input.url, UriKind.Absolute, out Uri uri))
                 {
-                    log.Error($"Input URL ({input.url}) is invalid format.");
+                    log.LogError($"Input URL ({input.url}) is invalid format.");
                     return req.CreateResponse(HttpStatusCode.BadRequest);
                 }
 
@@ -86,7 +84,7 @@ namespace cdams
                     Url = input.url
                 };
 
-                log.Info($"ShortCode={code} for URL {url.Url}");
+                log.LogInformation($"ShortCode={code} for URL {url.Url}");
                 result.url = $"https://{Utility.BASEURL}/{code}";
 
                 keyTable.Id++;
@@ -106,7 +104,7 @@ namespace cdams
             }
             catch (Exception ex)
             {
-                log.Error("Error processing link", ex);
+                log.LogError("Error processing link", ex);
                 result.error = ex.Message;
                 var response = new HttpResponseMessage
                 {
@@ -123,13 +121,13 @@ namespace cdams
             [Table(Utility.TABLE)]CloudTable inputTable,
             string shortUrl,
             [Queue(queueName: Utility.QUEUE)]IAsyncCollector<string> queue,
-            TraceWriter log)
+            ILogger log)
         {
-            log.Info($"C# HTTP trigger function processed a request for shortUrl {shortUrl}");
+            log.LogInformation($"C# HTTP trigger function processed a request for shortUrl {shortUrl}");
 
             if (shortUrl.ToLower() == Utility.ROBOTS)
             {
-                log.Info("Request for robots.txt.");
+                log.LogInformation("Request for robots.txt.");
                 return new HttpResponseMessage
                 {
                     Content = new StringContent(Utility.ROBOT_RESPONSE),
@@ -145,7 +143,7 @@ namespace cdams
 
                 var partitionKey = shortUrl.AsPartitionKey();
 
-                log.Info($"Searching for partition key {partitionKey} and row {shortUrl}.");
+                log.LogInformation($"Searching for partition key {partitionKey} and row {shortUrl}.");
 
                 TableResult result = null;
 
@@ -153,21 +151,21 @@ namespace cdams
                 result = await inputTable.ExecuteAsync(operation);
                 if (result.Result is ShortUrl fullUrl)
                 {
-                    log.Info($"Found it: {fullUrl.Url}");
+                    log.LogInformation($"Found it: {fullUrl.Url}");
                     redirectUrl = WebUtility.UrlDecode(fullUrl.Url);
                 }
                 var referrer = string.Empty;
                 if (req.Headers.Referrer != null)
                 {
-                    log.Info($"Referrer: {req.Headers.Referrer.ToString()}");
+                    log.LogInformation($"Referrer: {req.Headers.Referrer.ToString()}");
                     referrer = req.Headers.Referrer.ToString();
                 }
-                log.Info($"User agent: {req.Headers.UserAgent.ToString()}");
+                log.LogInformation($"User agent: {req.Headers.UserAgent.ToString()}");
                 await queue.AddAsync($"{shortUrl}|{redirectUrl}|{DateTime.UtcNow}|{referrer}|{req.Headers.UserAgent.ToString().Replace('|', '^')}");
             }
             else
             {
-                log.Warning("Bad Link, resorting to fallback.");
+                log.LogWarning("Bad Link, resorting to fallback.");
             }
 
             var res = req.CreateResponse(HttpStatusCode.Redirect);
@@ -176,22 +174,22 @@ namespace cdams
         }
 
         [FunctionName("KeepAlive")]
-        public static void KeepAlive([TimerTrigger(scheduleExpression: "0 */4 * * * *")]TimerInfo myTimer, TraceWriter log)
+        public static void KeepAlive([TimerTrigger(scheduleExpression: "0 */4 * * * *")]TimerInfo myTimer, ILogger log)
         {
-            log.Info("Keep-Alive invoked.");
+            log.LogInformation("Keep-Alive invoked.");
         }
 
         [FunctionName("ProcessQueue")]
         public static void ProcessQueue([QueueTrigger(queueName: Utility.QUEUE)]string request,
            [CosmosDB(Utility.URL_TRACKING, Utility.URL_STATS, CreateIfNotExists = true, ConnectionStringSetting = "CosmosDb")]out dynamic doc,
-           TraceWriter log)
+           ILogger log)
         {
             try
             {
                 AnalyticsEntry parsed = Utility.ParseQueuePayload(request);
-                var page = parsed.LongUrl.AsPage(HttpUtility.ParseQueryString);
+                var page = parsed.LongUrl.AsPage();
 
-                var analytics = parsed.LongUrl.ExtractCampaignMediumAndAlias(HttpUtility.ParseQueryString);
+                var analytics = parsed.LongUrl.ExtractCampaignMediumAndAlias();
                 var campaign = analytics.Item1;
                 var medium = analytics.Item2;
                 var alias = analytics.Item3;
@@ -216,7 +214,7 @@ namespace cdams
                 }
                 if (parsed.Referrer != null)
                 {
-                    doc.referrerUrl = parsed.Referrer.AsPage(HttpUtility.ParseQueryString);
+                    doc.referrerUrl = parsed.Referrer.AsPage();
                     doc.referrerHost = parsed.Referrer.DnsSafeHost;
                 }
                 if (!string.IsNullOrWhiteSpace(parsed.Agent))
@@ -230,11 +228,11 @@ namespace cdams
                 {
                     ((IDictionary<string, object>)doc).Add(medium, 1);
                 }
-                log.Info($"CosmosDB: {doc.id}|{doc.page}|{parsed.ShortUrl}|{campaign}|{medium}");
+                log.LogInformation($"CosmosDB: {doc.id}|{doc.page}|{parsed.ShortUrl}|{campaign}|{medium}");
             }
             catch (Exception ex)
             {
-                log.Error("An unexpected error occurred", ex);
+                log.LogError("An unexpected error occurred", ex);
                 throw;
             }
         }
