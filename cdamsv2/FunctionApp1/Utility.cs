@@ -45,6 +45,11 @@ namespace cdamsv2
 
         public static string AsPage(this Uri uri)
         {
+            if (uri == null)
+            {
+                return string.Empty;
+            }
+
             var pageUrl = new UriBuilder(uri)
             {
                 Port = -1

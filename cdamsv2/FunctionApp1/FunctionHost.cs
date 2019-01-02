@@ -187,7 +187,7 @@ namespace cdamsv2
             try
             {
                 AnalyticsEntry parsed = Utility.ParseQueuePayload(request);
-                var page = parsed.LongUrl.AsPage();
+                var page = parsed?.LongUrl?.AsPage();
 
                 var analytics = parsed.LongUrl.ExtractCampaignMediumAndAlias();
                 var campaign = analytics.Item1;
